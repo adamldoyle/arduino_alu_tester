@@ -16,3 +16,5 @@ Bit shift register 2:
 * Qc => SU flag for ALU to control subtraction
 
 Outputs of ALU are connected directly to Arduino data pins. Note: my ALU output isn't connected to common bus with registers. If your's is, make sure the transceiver is disabled so it's not interfering with inputs.
+
+![](https://raw.githubusercontent.com/adamldoyle/arduino_alu_tester/breadboard_picture/alu_and_tester.jpg)
