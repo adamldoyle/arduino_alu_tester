@@ -9,11 +9,16 @@
  * Bit shift register 1:
  * - Qa-Qh => LSB of register A/B input (Qa) through MSB of register A/B input (Qh)
  * - Qh' => Chained to bit shift register 2
+ * - OE => Qg of shift register 2
  * 
  * Bit shift register 2:
  * - Qa => IE for register A
  * - Qb => IE for register B
  * - Qc => SU flag for ALU to control subtraction
+ * - Qd => OUT for register A
+ * - Qe => OUT for register B
+ * - Qf => OUT for ALU
+ * - Qg => shift out for register 1
  * 
  * Outputs of ALU are connected directly to Arduino data pins. Note: my ALU output isn't connected to common bus with registers. If your's is, make sure the transceiver is disabled so it's not interfering with inputs.
  */
@@ -34,11 +39,24 @@
 #define PIN_IN_LSB 5
 #define PIN_IN_MSB 12
 
+#define A_IN_OFF 1
+#define B_IN_OFF 2
+#define SUB_ON 4
+#define A_OUT_OFF 8
+#define B_OUT_OFF 16
+#define ALU_OUT_OFF 32
+#define SHIFT_OUT_OFF 64
+
+#define DEFAULT_CONTROL (A_IN_OFF | B_IN_OFF | A_OUT_OFF | B_OUT_OFF | ALU_OUT_OFF | SHIFT_OUT_OFF) // 0b01111011
+
 // If true, print out every calculation; if false, only print out errors
-#define DEBUG false
+#define DEBUG true
 
 // If true, halts on bad calculation; if false, continues
 #define STOP_ON_ERROR true
+
+#define TEST_ADDITION true
+#define TEST_SUBTRACTION true
 
 bool stop = false;
 char buf[30];
@@ -63,13 +81,13 @@ void setup() {
   digitalWrite(PIN_REGCLK, LOW);
 
   // Clear both registers
-  outputNumber(0, 0, false);
+  outputNumber(0, DEFAULT_CONTROL - A_IN_OFF - B_IN_OFF - SHIFT_OUT_OFF);
 }
 
 // Sends a number to a register
-void outputNumber(int number, int regOut, bool sub) {
+void outputNumber(int number, int control) {
   // Push out active register and add/sub settings
-  shiftOut(PIN_DATA, PIN_SRCLK, MSBFIRST, regOut | (sub ? 0b100 : 0));
+  shiftOut(PIN_DATA, PIN_SRCLK, MSBFIRST, control);
   
   // Push out number
   shiftOut(PIN_DATA, PIN_SRCLK, MSBFIRST, number);
@@ -103,8 +121,11 @@ int readAnswer() {
 
 // Outputs aNumber and bNumber to A and B registers and validates ALU produces correct solution
 bool verifyAddition(int aNumber, int bNumber) {
-  outputNumber(aNumber, 2, false);
-  outputNumber(bNumber, 1, false);
+  outputNumber(aNumber, DEFAULT_CONTROL - A_IN_OFF - SHIFT_OUT_OFF);
+  outputNumber(bNumber, DEFAULT_CONTROL - B_IN_OFF - SHIFT_OUT_OFF);
+  outputNumber(0, DEFAULT_CONTROL - SHIFT_OUT_OFF);
+  outputNumber(0, DEFAULT_CONTROL);
+  outputNumber(0, DEFAULT_CONTROL - ALU_OUT_OFF);
   
   int answer = readAnswer();
   int solution = (aNumber + bNumber) & 255;
@@ -123,8 +144,11 @@ bool verifyAddition(int aNumber, int bNumber) {
 
 // Outputs aNumber and bNumber to A and B registers and validates ALU produces correct solution
 bool verifySubtraction(int aNumber, int bNumber) {
-  outputNumber(aNumber, 2, true);
-  outputNumber(bNumber, 1, true);
+  outputNumber(aNumber, DEFAULT_CONTROL - A_IN_OFF - SHIFT_OUT_OFF + SUB_ON);
+  outputNumber(bNumber, DEFAULT_CONTROL - B_IN_OFF - SHIFT_OUT_OFF + SUB_ON);
+  outputNumber(0, DEFAULT_CONTROL - SHIFT_OUT_OFF + SUB_ON);
+  outputNumber(0, DEFAULT_CONTROL + SUB_ON);
+  outputNumber(0, DEFAULT_CONTROL - ALU_OUT_OFF + SUB_ON);
   
   signed char answer = readAnswer();
   signed char bNumber2 = bNumber;
@@ -147,6 +171,7 @@ void loop() {
     return;
   }
 
+#if (TEST_ADDITION)
 #if (!DEBUG)
   Serial.println("Addition");
 #endif
@@ -169,6 +194,11 @@ void loop() {
   }
 #if (!DEBUG)
   Serial.println(" done");
+#endif
+#endif
+
+#if (TEST_SUBTRACTION)
+#if (!DEBUG)
   Serial.println("\nSubtraction");
 #endif
 
@@ -191,5 +221,6 @@ void loop() {
   }
 #if (!DEBUG)
   Serial.println(" done");
+#endif
 #endif
 }
